@@ -1,0 +1,154 @@
+# cao
+
+`cao` is a workspace-first home-state composer for dotfiles, configs, secrets, and user scripts.
+
+The public model is intentionally simple:
+
+- `cao` has its own base directory under XDG
+- every workspace present in `workspaces/` is active by default
+- simple cases use CLI-generated resources
+- `plan`, `apply`, `diff`, and `prune` always work from the locally present workspaces
+
+## Install
+
+The easiest way to distribute `cao` is as a prebuilt binary from [GitHub Releases](https://github.com/valentin/cao/releases).
+
+Download the archive for your platform, extract `cao`, and place it in a directory that is already in your `PATH`, such as `~/.local/bin`.
+
+If you prefer building from source:
+
+```bash
+go install github.com/valentin/cao/cmd/cao@latest
+```
+
+## Runtime dependencies
+
+End users do not need Go if they install a released binary.
+
+Some workflows still rely on external tools:
+
+- `git` for `cao fetch`
+- `sops` for secret encryption and decryption
+- `age` as the companion CLI for generating and managing age keys
+- an age private key file for decrypting age-backed secrets, usually `~/.config/sops/age/keys.txt`
+
+Run `cao doctor` to check the current machine. It reports missing dependencies and prints short fix hints when something is not configured yet.
+
+## Base directories
+
+By default `cao` stores data here:
+
+- workspaces: `~/.local/share/cao/workspaces`
+- generated files: `~/.config/cao/generated`
+- state: `~/.local/state/cao/state.json`
+
+`cao doctor` prints the exact paths for the current machine.
+
+## Main commands
+
+```bash
+cao doctor
+cao init perso
+cao fetch git@github.com:me/cao-work.git work
+cao workspace list
+cao workspace rename perso personal
+cao workspace show work
+cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format kubeconfig --age age1...
+cao workspace work command add --name kubectl-work --exec kubectl --env 'KUBECONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/cao/generated/work/work-kubeconfig'
+cao workspace perso files add --input ~/.config/myapp/config.json --target ~/.config/myapp/config.json
+cao workspace perso publish add --input ./scripts/devbox --name devbox
+cao plan
+cao diff
+cao apply
+cao prune
+```
+
+`cao apply` is the normal sync command. It writes the desired files and prunes stale managed files by default. Use `cao apply --no-prune` if you want to keep old managed artifacts around temporarily.
+
+## Workspace layout
+
+Each workspace lives under `~/.local/share/cao/workspaces/<name>` and looks like this:
+
+```text
+workspace.yaml
+resources/
+secrets/
+files/
+bin/
+```
+
+Minimal `workspace.yaml`:
+
+```yaml
+name: work
+description: Professional environment
+platforms:
+  - linux
+  - wsl
+```
+
+Simple resources live in `resources/*.yaml`:
+
+```yaml
+kind: secret
+name: work-kubeconfig
+source: secrets/work-kubeconfig.enc.yaml
+target: ${XDG_CONFIG_HOME}/cao/generated/work/work-kubeconfig
+mode: "0600"
+format: kubeconfig
+```
+
+Supported simple resource kinds:
+
+- `secret`
+- `file`
+- `publish`
+
+For tiny aliases or wrappers, prefer `cao workspace <name> command add`. It generates a small published script for you and still uses the same `publish` mechanism underneath.
+
+All generated secret targets now follow the same workspace-first layout:
+
+- `~/.config/cao/generated/work/<name>`
+- `~/.config/cao/generated/perso/<name>`
+
+`kubeconfig` is no longer special from a target-path point of view. It only affects how the file is encrypted and validated.
+
+If you rename a workspace later, `cao workspace rename <old> <new>` updates the workspace folder, `workspace.yaml`, simple secret targets that still use the default layout, tracked state entries, and generated command wrappers that reference the old default generated path.
+
+## Kubeconfig example
+
+Personal workspace:
+
+```bash
+cao workspace perso secrets add \
+  --input ~/Downloads/personal-kubeconfig.yaml \
+  --format kubeconfig \
+  --age age1PERSONAL
+```
+
+Work workspace:
+
+```bash
+cao workspace work secrets add \
+  --input ~/Downloads/work-kubeconfig.yaml \
+  --format kubeconfig \
+  --age age1WORK
+```
+
+After `cao apply`, you can use both with:
+
+```bash
+export KUBECONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/cao/generated/work/work-kubeconfig:${XDG_CONFIG_HOME:-$HOME/.config}/cao/generated/perso/personal-kubeconfig"
+kubectl config get-contexts
+```
+
+## YAML subset
+
+Manifests are intentionally strict:
+
+- unknown fields are rejected
+- anchors and aliases are rejected
+- merge keys (`<<`) are rejected
+- custom YAML tags are rejected
+
+That keeps behavior explicit and reviewable.
