@@ -1,0 +1,51 @@
+name: update-homebrew-tap
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish to the Homebrew tap"
+        required: true
+        default: "v1.0"
+
+env:
+  TAP_REPOSITORY: ValentinAUCLERC/homebrew-tap
+  TAP_DIRECTORY: homebrew-tap
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_TAG: ${{ inputs.tag || github.ref_name }}
+
+    steps:
+      - name: Checkout cao
+        uses: actions/checkout@v4
+
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TAP_REPOSITORY }}
+          path: ${{ env.TAP_DIRECTORY }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Update formula
+        working-directory: ${{ env.TAP_DIRECTORY }}
+        run: ./scripts/update-cao-formula.sh "${TARGET_TAG}"
+
+      - name: Commit and push
+        working-directory: ${{ env.TAP_DIRECTORY }}
+        run: |
+          if git diff --quiet; then
+            echo "No formula changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/cao.rb
+          git commit -m "cao ${TARGET_TAG}"
+          git push
