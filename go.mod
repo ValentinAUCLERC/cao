@@ -1,4 +1,4 @@
-module github.com/valentin/cao
+module github.com/ValentinAUCLERC/cao
 
 go 1.23.0
 

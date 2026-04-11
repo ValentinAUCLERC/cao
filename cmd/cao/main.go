@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/valentin/cao/internal/app"
+	"github.com/ValentinAUCLERC/cao/internal/app"
 )
 
 func main() {

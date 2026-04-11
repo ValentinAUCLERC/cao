@@ -10,12 +10,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/valentin/cao/internal/command"
-	"github.com/valentin/cao/internal/deps"
-	"github.com/valentin/cao/internal/engine"
-	caoruntime "github.com/valentin/cao/internal/runtime"
-	"github.com/valentin/cao/internal/secrets"
-	caoworkspace "github.com/valentin/cao/internal/workspace"
+	"github.com/ValentinAUCLERC/cao/internal/command"
+	"github.com/ValentinAUCLERC/cao/internal/deps"
+	"github.com/ValentinAUCLERC/cao/internal/engine"
+	caoruntime "github.com/ValentinAUCLERC/cao/internal/runtime"
+	"github.com/ValentinAUCLERC/cao/internal/secrets"
+	caoworkspace "github.com/ValentinAUCLERC/cao/internal/workspace"
 )
 
 type App struct {

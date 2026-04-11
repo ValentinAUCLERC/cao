@@ -11,14 +11,14 @@ The public model is intentionally simple:
 
 ## Install
 
-The easiest way to distribute `cao` is as a prebuilt binary from [GitHub Releases](https://github.com/valentin/cao/releases).
+The easiest way to distribute `cao` is as a prebuilt binary from [GitHub Releases](https://github.com/ValentinAUCLERC/cao/releases).
 
 Download the archive for your platform, extract `cao`, and place it in a directory that is already in your `PATH`, such as `~/.local/bin`.
 
 If you prefer building from source:
 
 ```bash
-go install github.com/valentin/cao/cmd/cao@latest
+go install github.com/ValentinAUCLERC/cao/cmd/cao@latest
 ```
 
 ## Runtime dependencies

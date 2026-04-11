@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/valentin/cao/internal/command"
-	"github.com/valentin/cao/internal/fsutil"
+	"github.com/ValentinAUCLERC/cao/internal/command"
+	"github.com/ValentinAUCLERC/cao/internal/fsutil"
 )
 
 type EncryptOptions struct {

@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/valentin/cao/internal/command"
-	"github.com/valentin/cao/internal/platform"
-	caoruntime "github.com/valentin/cao/internal/runtime"
-	caoworkspace "github.com/valentin/cao/internal/workspace"
+	"github.com/ValentinAUCLERC/cao/internal/command"
+	"github.com/ValentinAUCLERC/cao/internal/platform"
+	caoruntime "github.com/ValentinAUCLERC/cao/internal/runtime"
+	caoworkspace "github.com/ValentinAUCLERC/cao/internal/workspace"
 )
 
 type Requirement string

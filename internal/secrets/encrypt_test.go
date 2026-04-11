@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/valentin/cao/internal/command"
+	"github.com/ValentinAUCLERC/cao/internal/command"
 )
 
 type fakeRunner struct {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/valentin/cao/internal/fsutil"
+	"github.com/ValentinAUCLERC/cao/internal/fsutil"
 )
 
 type Entry struct {

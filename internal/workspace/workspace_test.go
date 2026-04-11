@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/valentin/cao/internal/command"
-	"github.com/valentin/cao/internal/config"
-	"github.com/valentin/cao/internal/runtime"
-	"github.com/valentin/cao/internal/state"
+	"github.com/ValentinAUCLERC/cao/internal/command"
+	"github.com/ValentinAUCLERC/cao/internal/config"
+	"github.com/ValentinAUCLERC/cao/internal/runtime"
+	"github.com/ValentinAUCLERC/cao/internal/state"
 )
 
 type fakeRunner struct {

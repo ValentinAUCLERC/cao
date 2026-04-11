@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/valentin/cao/internal/command"
-	"github.com/valentin/cao/internal/runtime"
+	"github.com/ValentinAUCLERC/cao/internal/command"
+	"github.com/ValentinAUCLERC/cao/internal/runtime"
 )
 
 type fakeDependencyRunner struct {
