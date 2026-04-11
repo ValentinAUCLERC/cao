@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 )
 
@@ -29,11 +30,38 @@ func Detect() (Paths, error) {
 	if err != nil {
 		return Paths{}, fmt.Errorf("detect home: %w", err)
 	}
-	configHome := envOr("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-	cacheHome := envOr("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
-	stateHome := envOr("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
-	dataHome := envOr("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
-	runtimeDir := envOr("XDG_RUNTIME_DIR", filepath.Join(os.TempDir(), "cao-"+sanitizeHome(home)))
+	return detectFor(goruntime.GOOS, home, os.TempDir(), os.Getenv), nil
+}
+
+func detectFor(goos, home, tempDir string, getenv func(string) string) Paths {
+	if goos == "windows" {
+		configHome := envOrWith(getenv, "APPDATA", filepath.Join(home, "AppData", "Roaming"))
+		localHome := envOrWith(getenv, "LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+		appConfigDir := filepath.Join(configHome, "cao")
+		appLocalDir := filepath.Join(localHome, "cao")
+		return Paths{
+			Home:            home,
+			ConfigHome:      configHome,
+			CacheHome:       localHome,
+			StateHome:       localHome,
+			DataHome:        localHome,
+			RuntimeDir:      envOrWith(getenv, "TEMP", filepath.Join(tempDir, "cao-"+sanitizeHome(home))),
+			AppConfigDir:    appConfigDir,
+			AppCacheDir:     appLocalDir,
+			AppStateDir:     appLocalDir,
+			AppDataDir:      appLocalDir,
+			WorkspacesDir:   filepath.Join(appLocalDir, "workspaces"),
+			AppGeneratedDir: filepath.Join(appConfigDir, "generated"),
+			BinDir:          filepath.Join(home, ".local", "bin"),
+			StateFile:       filepath.Join(appLocalDir, "state.json"),
+		}
+	}
+
+	configHome := envOrWith(getenv, "XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	cacheHome := envOrWith(getenv, "XDG_CACHE_HOME", filepath.Join(home, ".cache"))
+	stateHome := envOrWith(getenv, "XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
+	dataHome := envOrWith(getenv, "XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	runtimeDir := envOrWith(getenv, "XDG_RUNTIME_DIR", filepath.Join(tempDir, "cao-"+sanitizeHome(home)))
 	appConfigDir := filepath.Join(configHome, "cao")
 	appCacheDir := filepath.Join(cacheHome, "cao")
 	appStateDir := filepath.Join(stateHome, "cao")
@@ -53,7 +81,7 @@ func Detect() (Paths, error) {
 		AppGeneratedDir: filepath.Join(appConfigDir, "generated"),
 		BinDir:          filepath.Join(home, ".local", "bin"),
 		StateFile:       filepath.Join(appStateDir, "state.json"),
-	}, nil
+	}
 }
 
 func DefaultGeneratedSecretTarget(workspaceName, resourceName string) string {
@@ -82,7 +110,11 @@ func (p Paths) Expand(value string) string {
 }
 
 func envOr(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
+	return envOrWith(os.Getenv, key, fallback)
+}
+
+func envOrWith(getenv func(string) string, key, fallback string) string {
+	if value := getenv(key); value != "" {
 		return value
 	}
 	return fallback

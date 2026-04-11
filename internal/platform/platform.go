@@ -9,19 +9,14 @@ import (
 type Name string
 
 const (
-	Darwin Name = "darwin"
-	Linux  Name = "linux"
-	WSL    Name = "wsl"
+	Darwin  Name = "darwin"
+	Linux   Name = "linux"
+	Windows Name = "windows"
+	WSL     Name = "wsl"
 )
 
 func Detect() Name {
-	if runtime.GOOS == "darwin" {
-		return Darwin
-	}
-	if runtime.GOOS == "linux" && isWSL() {
-		return WSL
-	}
-	return Linux
+	return detect(runtime.GOOS, os.Getenv, os.ReadFile)
 }
 
 func Matches(allowed []string, current Name) bool {
@@ -40,11 +35,27 @@ func Matches(allowed []string, current Name) bool {
 	return false
 }
 
-func isWSL() bool {
-	if os.Getenv("WSL_DISTRO_NAME") != "" {
+func detect(goos string, getenv func(string) string, readFile func(string) ([]byte, error)) Name {
+	switch goos {
+	case "darwin":
+		return Darwin
+	case "windows":
+		return Windows
+	case "linux":
+		if isWSL(getenv, readFile) {
+			return WSL
+		}
+		return Linux
+	default:
+		return Name(goos)
+	}
+}
+
+func isWSL(getenv func(string) string, readFile func(string) ([]byte, error)) bool {
+	if getenv("WSL_DISTRO_NAME") != "" {
 		return true
 	}
-	data, err := os.ReadFile("/proc/version")
+	data, err := readFile("/proc/version")
 	if err != nil {
 		return false
 	}

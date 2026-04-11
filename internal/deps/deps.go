@@ -153,11 +153,7 @@ func checkAgeKey(paths caoruntime.Paths, optional bool) Status {
 	status := Status{
 		Requirement: RequirementAgeKey,
 		Optional:    optional,
-		Fixes: []string{
-			"mkdir -p " + filepath.Join(paths.ConfigHome, "sops", "age"),
-			"age-keygen -o " + filepath.Join(paths.ConfigHome, "sops", "age", "keys.txt"),
-			"Set SOPS_AGE_KEY_FILE if your key lives somewhere else",
-		},
+		Fixes:       ageKeyFixes(paths, platform.Detect()),
 	}
 
 	for _, candidate := range ageKeyCandidates(paths) {
@@ -203,6 +199,8 @@ func installHints(requirement Requirement, current platform.Name) []string {
 		switch current {
 		case platform.Darwin:
 			return []string{"brew install git"}
+		case platform.Windows:
+			return []string{"Install Git for Windows from https://git-scm.com/download/win"}
 		default:
 			return []string{"Install git with your package manager, for example: sudo apt install git"}
 		}
@@ -210,6 +208,8 @@ func installHints(requirement Requirement, current platform.Name) []string {
 		switch current {
 		case platform.Darwin:
 			return []string{"brew install sops"}
+		case platform.Windows:
+			return []string{"Install sops from https://github.com/getsops/sops/releases"}
 		default:
 			return []string{"Install sops from https://github.com/getsops/sops/releases or your package manager"}
 		}
@@ -217,11 +217,32 @@ func installHints(requirement Requirement, current platform.Name) []string {
 		switch current {
 		case platform.Darwin:
 			return []string{"brew install age"}
+		case platform.Windows:
+			return []string{"Install age from https://github.com/FiloSottile/age/releases"}
 		default:
 			return []string{"Install age with your package manager, for example: sudo apt install age"}
 		}
 	default:
 		return nil
+	}
+}
+
+func ageKeyFixes(paths caoruntime.Paths, current platform.Name) []string {
+	dir := filepath.Join(paths.ConfigHome, "sops", "age")
+	keyFile := filepath.Join(dir, "keys.txt")
+	switch current {
+	case platform.Windows:
+		return []string{
+			"New-Item -ItemType Directory -Force -Path '" + dir + "'",
+			"age-keygen -o '" + keyFile + "'",
+			"Set SOPS_AGE_KEY_FILE if your key lives somewhere else",
+		}
+	default:
+		return []string{
+			"mkdir -p " + dir,
+			"age-keygen -o " + keyFile,
+			"Set SOPS_AGE_KEY_FILE if your key lives somewhere else",
+		}
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ValentinAUCLERC/cao/internal/command"
+	"github.com/ValentinAUCLERC/cao/internal/platform"
 	"github.com/ValentinAUCLERC/cao/internal/runtime"
 )
 
@@ -49,6 +50,22 @@ func TestCheckReportsMissingToolsAndAgeKey(t *testing.T) {
 	}
 	if len(statuses[1].Fixes) == 0 {
 		t.Fatalf("expected age-key fix hints")
+	}
+}
+
+func TestAgeKeyFixesUsePowerShellHintsOnWindows(t *testing.T) {
+	t.Parallel()
+
+	paths := runtime.Paths{ConfigHome: filepath.Join("Users", "valen", "AppData", "Roaming")}
+	fixes := ageKeyFixes(paths, platform.Windows)
+	if len(fixes) != 3 {
+		t.Fatalf("expected 3 fixes, got %d", len(fixes))
+	}
+	if fixes[0][:8] != "New-Item" {
+		t.Fatalf("expected PowerShell directory hint, got %q", fixes[0])
+	}
+	if fixes[1][:13] != "age-keygen -o" {
+		t.Fatalf("expected age-keygen hint, got %q", fixes[1])
 	}
 }
 
