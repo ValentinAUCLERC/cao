@@ -70,7 +70,7 @@ func (a *App) Run(ctx context.Context, args []string) int {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(a.stdout, engine.FormatPlan(plan, diffItems))
+			fmt.Fprintln(a.stdout, formatPlan(detectOutputStyle(a.stdout), plan, diffItems))
 			return nil
 		})
 	case "diff":
@@ -79,11 +79,10 @@ func (a *App) Run(ctx context.Context, args []string) int {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(a.stdout, engine.FormatPlan(plan, diffItems))
+			style := detectOutputStyle(a.stdout)
+			fmt.Fprintln(a.stdout, formatPlan(style, plan, diffItems))
 			fmt.Fprintln(a.stdout, "")
-			for _, key := range sortedKeys(engine.Summary(diffItems)) {
-				fmt.Fprintf(a.stdout, "%s: %d\n", key, engine.Summary(diffItems)[key])
-			}
+			fmt.Fprintln(a.stdout, formatDiffSummary(style, engine.Summary(diffItems)))
 			return nil
 		})
 	case "apply":
@@ -95,7 +94,12 @@ func (a *App) Run(ctx context.Context, args []string) int {
 				return err
 			}
 			if len(removed) == 0 {
-				fmt.Fprintln(a.stdout, "nothing to prune")
+				style := detectOutputStyle(a.stdout)
+				if style.enabled {
+					fmt.Fprintln(a.stdout, style.muted("Nothing to prune."))
+				} else {
+					fmt.Fprintln(a.stdout, "nothing to prune")
+				}
 				return nil
 			}
 			for _, item := range removed {
@@ -146,12 +150,17 @@ func (a *App) runDoctor(ctx context.Context, args []string, paths caoruntime.Pat
 		a.printCommandHelp(a.stderr, helpCatalog["doctor"])
 		return 1
 	}
-	results, err := engine.Doctor(ctx, paths, runner)
+	statuses, err := deps.Check(ctx, paths, runner, []deps.RequirementSpec{
+		{Requirement: deps.RequirementGit},
+		{Requirement: deps.RequirementSops},
+		{Requirement: deps.RequirementAge, Optional: true},
+		{Requirement: deps.RequirementAgeKey, Optional: true},
+	})
 	if err != nil {
 		fmt.Fprintf(a.stderr, "doctor: %v\n", err)
 		return 1
 	}
-	for _, line := range results {
+	for _, line := range formatDoctor(detectOutputStyle(a.stdout), statuses, paths) {
 		fmt.Fprintln(a.stdout, line)
 	}
 	return 0
@@ -270,15 +279,17 @@ func (a *App) runWorkspaceList(paths caoruntime.Paths, args []string) int {
 		return 1
 	}
 	if len(infos) == 0 {
-		fmt.Fprintln(a.stdout, "no workspaces")
+		style := detectOutputStyle(a.stdout)
+		if style.enabled {
+			fmt.Fprintln(a.stdout, style.warning("No workspaces."))
+		} else {
+			fmt.Fprintln(a.stdout, "no workspaces")
+		}
 		return 0
 	}
+	style := detectOutputStyle(a.stdout)
 	for _, info := range infos {
-		if info.Problem != "" {
-			fmt.Fprintf(a.stdout, "%s (invalid: %s)\n", info.Name, info.Problem)
-			continue
-		}
-		fmt.Fprintln(a.stdout, info.Name)
+		fmt.Fprintln(a.stdout, formatWorkspaceListEntry(style, info))
 	}
 	return 0
 }
@@ -333,27 +344,7 @@ func (a *App) runWorkspaceShow(paths caoruntime.Paths, args []string) int {
 		fmt.Fprintf(a.stderr, "%v\n", err)
 		return 1
 	}
-	fmt.Fprintf(a.stdout, "workspace: %s\n", info.Name)
-	fmt.Fprintf(a.stdout, "path: %s\n", info.Root)
-	if info.Problem != "" {
-		fmt.Fprintf(a.stdout, "status: invalid (%s)\n", info.Problem)
-		return 0
-	}
-	fmt.Fprintln(a.stdout, "status: valid")
-	if info.Manifest.Description != "" {
-		fmt.Fprintf(a.stdout, "description: %s\n", info.Manifest.Description)
-	}
-	if len(info.Manifest.Platforms) > 0 {
-		fmt.Fprintf(a.stdout, "platforms: %s\n", strings.Join(info.Manifest.Platforms, ", "))
-	}
-	fmt.Fprintf(a.stdout, "resources: %d\n", len(info.Resources))
-	for _, resource := range info.Resources {
-		target := resource.Manifest.Target
-		if target == "" {
-			target = "(default)"
-		}
-		fmt.Fprintf(a.stdout, "  - %s %s -> %s\n", resource.Manifest.Kind, resource.Manifest.Name, target)
-	}
+	fmt.Fprintln(a.stdout, formatWorkspaceInfo(detectOutputStyle(a.stdout), info))
 	return 0
 }
 
@@ -396,7 +387,9 @@ func (a *App) runWorkspaceSecretsAdd(ctx context.Context, workspaceName string, 
 		fmt.Fprintf(a.stderr, "%v\n", err)
 		return 1
 	}
-	fmt.Fprintf(a.stdout, "secret: %s\nresource: %s\n", secretPath, resourcePath)
+	style := detectOutputStyle(a.stdout)
+	fmt.Fprintln(a.stdout, formatPathResult(style, "secret", secretPath))
+	fmt.Fprintln(a.stdout, formatPathResult(style, "resource", resourcePath))
 	return 0
 }
 
@@ -429,7 +422,9 @@ func (a *App) runWorkspaceFilesAdd(workspaceName string, args []string, paths ca
 		fmt.Fprintf(a.stderr, "%v\n", err)
 		return 1
 	}
-	fmt.Fprintf(a.stdout, "file: %s\nresource: %s\n", filePath, resourcePath)
+	style := detectOutputStyle(a.stdout)
+	fmt.Fprintln(a.stdout, formatPathResult(style, "file", filePath))
+	fmt.Fprintln(a.stdout, formatPathResult(style, "resource", resourcePath))
 	return 0
 }
 
@@ -462,7 +457,9 @@ func (a *App) runWorkspacePublishAdd(workspaceName string, args []string, paths 
 		fmt.Fprintf(a.stderr, "%v\n", err)
 		return 1
 	}
-	fmt.Fprintf(a.stdout, "publish: %s\nresource: %s\n", binPath, resourcePath)
+	style := detectOutputStyle(a.stdout)
+	fmt.Fprintln(a.stdout, formatPathResult(style, "publish", binPath))
+	fmt.Fprintln(a.stdout, formatPathResult(style, "resource", resourcePath))
 	return 0
 }
 
@@ -501,7 +498,9 @@ func (a *App) runWorkspaceCommandAdd(workspaceName string, args []string, paths 
 		fmt.Fprintf(a.stderr, "%v\n", err)
 		return 1
 	}
-	fmt.Fprintf(a.stdout, "command: %s\nresource: %s\n", commandPath, resourcePath)
+	style := detectOutputStyle(a.stdout)
+	fmt.Fprintln(a.stdout, formatPathResult(style, "command", commandPath))
+	fmt.Fprintln(a.stdout, formatPathResult(style, "resource", resourcePath))
 	return 0
 }
 
@@ -537,7 +536,7 @@ func (a *App) runApply(ctx context.Context, args []string, eng *engine.Engine) i
 		fmt.Fprintf(a.stderr, "%v\n", err)
 		return 1
 	}
-	fmt.Fprintln(a.stdout, engine.FormatPlan(plan, diffItems))
+	fmt.Fprintln(a.stdout, formatPlan(detectOutputStyle(a.stdout), plan, diffItems))
 	return 0
 }
 
@@ -636,7 +635,7 @@ func (a *App) runSecretsEncrypt(ctx context.Context, args []string, runner comma
 		fmt.Fprintf(a.stderr, "%v\n", err)
 		return 1
 	}
-	fmt.Fprintf(a.stdout, "encrypted file written to %s\n", outputPath)
+	fmt.Fprintln(a.stdout, formatWrittenFile(detectOutputStyle(a.stdout), outputPath))
 	return 0
 }
 
@@ -648,7 +647,7 @@ func (a *App) requireDependencies(ctx context.Context, commandName string, paths
 	if len(deps.BlockingProblems(statuses)) == 0 {
 		return nil
 	}
-	return errors.New(deps.FormatPreflight(commandName, statuses))
+	return errors.New(formatPreflight(detectOutputStyle(a.stderr), commandName, statuses))
 }
 
 func (a *App) requireSecretReadDependencies(ctx context.Context, commandName string, filters []string, paths caoruntime.Paths, runner command.Runner) error {

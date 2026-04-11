@@ -265,31 +265,32 @@ var helpCatalog = map[string]commandHelp{
 }
 
 func (a *App) printGlobalHelp(w io.Writer) {
-	fmt.Fprintln(w, "cao composes dotfiles, configs, secrets, and user scripts from the workspaces stored in its own base directory.")
+	style := detectOutputStyle(w)
+	fmt.Fprintln(w, style.command("cao")+" composes dotfiles, configs, secrets, and user scripts from the workspaces stored in its own base directory.")
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  cao <command> [options]")
+	fmt.Fprintln(w, style.heading("Usage"))
+	fmt.Fprintln(w, "  "+style.code("cao <command> [options]"))
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Top-level commands:")
+	fmt.Fprintln(w, style.heading("Top-Level Commands"))
 	for _, key := range topLevelOrder {
 		command := helpCatalog[key]
-		fmt.Fprintf(w, "  %-10s %s\n", command.Name, command.Summary)
+		fmt.Fprintf(w, "  %s %s\n", style.command(padRight(command.Name, 10)), command.Summary)
 	}
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Useful nested commands:")
+	fmt.Fprintln(w, style.heading("Useful Nested Commands"))
 	for _, key := range []string{"workspace rename", "workspace secrets add", "workspace files add", "workspace command add", "workspace publish add", "secrets encrypt"} {
 		command := helpCatalog[key]
-		fmt.Fprintf(w, "  %-24s %s\n", command.Name, command.Summary)
+		fmt.Fprintf(w, "  %s %s\n", style.command(padRight(command.Name, 24)), command.Summary)
 	}
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Help:")
-	fmt.Fprintln(w, "  cao help")
-	fmt.Fprintln(w, "  cao help workspace")
-	fmt.Fprintln(w, "  cao help workspace rename")
-	fmt.Fprintln(w, "  cao help workspace secrets add")
-	fmt.Fprintln(w, "  cao help secrets encrypt")
+	fmt.Fprintln(w, style.heading("Help"))
+	fmt.Fprintln(w, "  "+style.code("cao help"))
+	fmt.Fprintln(w, "  "+style.code("cao help workspace"))
+	fmt.Fprintln(w, "  "+style.code("cao help workspace rename"))
+	fmt.Fprintln(w, "  "+style.code("cao help workspace secrets add"))
+	fmt.Fprintln(w, "  "+style.code("cao help secrets encrypt"))
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Command details:")
+	fmt.Fprintln(w, style.heading("Command Details"))
 	for index, key := range topLevelOrder {
 		if index > 0 {
 			fmt.Fprintln(w, "")
@@ -299,21 +300,22 @@ func (a *App) printGlobalHelp(w io.Writer) {
 }
 
 func (a *App) printCommandHelp(w io.Writer, command commandHelp) {
-	fmt.Fprintf(w, "%s\n", command.Name)
+	style := detectOutputStyle(w)
+	fmt.Fprintf(w, "%s\n", style.command(command.Name))
 	fmt.Fprintf(w, "  %s\n", command.Summary)
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintf(w, "  %s\n", command.Usage)
+	fmt.Fprintln(w, style.heading("Usage"))
+	fmt.Fprintf(w, "  %s\n", style.code(command.Usage))
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Description:")
+	fmt.Fprintln(w, style.heading("Description"))
 	for _, line := range wrapText(command.Description, 78) {
 		fmt.Fprintf(w, "  %s\n", line)
 	}
 	if len(command.Options) > 0 {
 		fmt.Fprintln(w, "")
-		fmt.Fprintln(w, "Options:")
+		fmt.Fprintln(w, style.heading("Options"))
 		for _, option := range command.Options {
-			fmt.Fprintf(w, "  %s\n", option.Flag)
+			fmt.Fprintf(w, "  %s\n", style.code(option.Flag))
 			for _, line := range wrapText(option.Description, 74) {
 				fmt.Fprintf(w, "    %s\n", line)
 			}
@@ -321,9 +323,9 @@ func (a *App) printCommandHelp(w io.Writer, command commandHelp) {
 	}
 	if len(command.Examples) > 0 {
 		fmt.Fprintln(w, "")
-		fmt.Fprintln(w, "Examples:")
+		fmt.Fprintln(w, style.heading("Examples"))
 		for _, example := range command.Examples {
-			fmt.Fprintf(w, "  %s\n", example)
+			fmt.Fprintf(w, "  %s\n", style.code(example))
 		}
 	}
 }
