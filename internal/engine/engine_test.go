@@ -239,6 +239,31 @@ target: ~/.config/secrets/app.env
 	}
 }
 
+func TestLoadPlanSkipsStoredOnlySecretResources(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeWorkspaceFile(t, root, "work", "workspace.yaml", "name: work\n")
+	writeWorkspaceFile(t, root, "work", "resources/app-secret.yaml", `
+kind: secret
+name: app-secret
+source: secrets/app.env.enc
+`)
+	writeWorkspaceFile(t, root, "work", "secrets/app.env.enc", "encrypted")
+
+	runner := &fakeRunner{}
+	engine := testEngine(t, root, runner)
+	plan, err := engine.LoadPlan(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("load plan: %v", err)
+	}
+	if len(plan.Operations) != 0 {
+		t.Fatalf("expected stored-only secret to be skipped, got %d operations", len(plan.Operations))
+	}
+	if len(runner.commands) != 0 {
+		t.Fatalf("expected no decrypt call for stored-only secret, got %#v", runner.commands)
+	}
+}
+
 func TestApplySecuresGeneratedSecretDirectories(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -247,6 +272,7 @@ func TestApplySecuresGeneratedSecretDirectories(t *testing.T) {
 kind: secret
 name: app-secret
 source: secrets/app.env.enc
+target: ${XDG_CONFIG_HOME}/cao/generated/work/app-secret
 `)
 	writeWorkspaceFile(t, root, "work", "secrets/app.env.enc", "encrypted")
 

@@ -85,6 +85,28 @@ func TestFormatWorkspaceInfoStyledShowsResourceSection(t *testing.T) {
 	}
 }
 
+func TestFormatWorkspaceInfoStoredOnlySecretShowsStoredOnlyLabel(t *testing.T) {
+	t.Parallel()
+
+	output := formatWorkspaceInfo(outputStyle{enabled: false}, caoworkspace.Info{
+		Name: "work",
+		Root: "/tmp/work",
+		Manifest: &config.WorkspaceManifest{
+			Name: "work",
+		},
+		Resources: []caoworkspace.ResourceInfo{{
+			Manifest: &config.ResourceManifest{
+				Kind: "secret",
+				Name: "token",
+			},
+		}},
+	})
+
+	if !strings.Contains(output, "secret token -> (stored only)") {
+		t.Fatalf("expected stored-only label in %q", output)
+	}
+}
+
 func TestFormatWorkspaceOverviewStyledShowsSectionsAndANSI(t *testing.T) {
 	t.Parallel()
 

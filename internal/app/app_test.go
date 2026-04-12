@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -34,8 +35,8 @@ func TestRunWithoutArgsShowsWorkspaceOverview(t *testing.T) {
 	if !strings.Contains(output, "workspace: perso") {
 		t.Fatalf("expected workspace entry in stdout, got %q", output)
 	}
-	if !strings.Contains(output, "secret kubeconfig -> "+filepath.Join(paths.ConfigHome, "cao", "generated", "perso", "kubeconfig")) {
-		t.Fatalf("expected secret target in stdout, got %q", output)
+	if !strings.Contains(output, "secret kubeconfig -> (stored only)") {
+		t.Fatalf("expected stored-only secret in stdout, got %q", output)
 	}
 	if !strings.Contains(output, "file gitconfig -> "+filepath.Join(paths.Home, ".gitconfig")) {
 		t.Fatalf("expected file target in stdout, got %q", output)
@@ -48,6 +49,62 @@ func TestRunWithoutArgsShowsWorkspaceOverview(t *testing.T) {
 	}
 	if strings.Contains(output, "cao composes dotfiles") {
 		t.Fatalf("expected overview instead of global help, got %q", output)
+	}
+}
+
+func TestRunWorkspaceSecretsGetWritesStoredOnlySecretToStdout(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	paths := testRuntimePaths(root)
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "workspace.yaml"), "name: work\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "resources", "secret.yaml"), "kind: secret\nname: token\nsource: secrets/token.enc.yaml\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "secrets", "token.enc.yaml"), "encrypted\n")
+	writeTestFile(t, filepath.Join(paths.ConfigHome, "sops", "age", "keys.txt"), "AGE-SECRET-KEY-1...\n")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := newTestApp(&stdout, &stderr, paths, &fakeDependencyRunner{})
+	code := app.Run(context.Background(), []string{"workspace", "work", "secrets", "get", "token"})
+	if code != 0 {
+		t.Fatalf("expected success, got %d with stderr %q", code, stderr.String())
+	}
+	if stdout.String() != "secret=value\n" {
+		t.Fatalf("expected raw secret on stdout, got %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr output, got %q", stderr.String())
+	}
+}
+
+func TestRunWorkspaceSecretsGetCanWriteToFile(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	paths := testRuntimePaths(root)
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "workspace.yaml"), "name: work\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "resources", "secret.yaml"), "kind: secret\nname: token\nsource: secrets/token.enc.yaml\ntarget: ~/.config/token\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "secrets", "token.enc.yaml"), "encrypted\n")
+	writeTestFile(t, filepath.Join(paths.ConfigHome, "sops", "age", "keys.txt"), "AGE-SECRET-KEY-1...\n")
+
+	outputPath := filepath.Join(root, "out", "token.txt")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := newTestApp(&stdout, &stderr, paths, &fakeDependencyRunner{})
+	code := app.Run(context.Background(), []string{"workspace", "work", "secrets", "get", "token", "--output", outputPath})
+	if code != 0 {
+		t.Fatalf("expected success, got %d with stderr %q", code, stderr.String())
+	}
+
+	content, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("read output file: %v", err)
+	}
+	if string(content) != "secret=value\n" {
+		t.Fatalf("unexpected output file content %q", string(content))
+	}
+	if !strings.Contains(stdout.String(), outputPath) {
+		t.Fatalf("expected success output to mention %s, got %q", outputPath, stdout.String())
 	}
 }
 

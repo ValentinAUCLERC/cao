@@ -78,6 +78,8 @@ var helpCatalog = map[string]commandHelp{
 			"cao workspace rename perso personal",
 			"cao workspace show perso",
 			"cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format yaml --age age1...",
+			"cao workspace work secrets add --input .env --name mysql-root-password --no-target --age age1...",
+			"cao workspace work secrets get mysql-root-password > /tmp/mysql-root-password",
 			"cao workspace perso files add --input ~/.config/myapp/config.json --target ~/.config/myapp/config.json",
 			"cao workspace work command add --name kubectl-work --exec kubectl --env 'KUBECONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/cao/generated/work/work-kubeconfig'",
 			"cao workspace perso publish add --input ./scripts/devbox --name devbox",
@@ -96,19 +98,39 @@ var helpCatalog = map[string]commandHelp{
 	"workspace secrets add": {
 		Name:    "workspace <name> secrets add",
 		Summary: "Encrypt a plaintext file and register it as a managed secret resource.",
-		Usage:   "cao workspace <name> secrets add --input <path> [--name <name>] [--target <path>] [--format <auto|yaml|json|dotenv|binary>] [--age <recipient[,recipient...]>]",
+		Usage:   "cao workspace <name> secrets add --input <path> [--name <name>] [--target <path> | --no-target] [--format <auto|yaml|json|dotenv|binary>] [--age <recipient[,recipient...]>]",
 		Description: "Encrypts the input with SOPS into the workspace `secrets/` directory, " +
-			"then creates a `resources/secret-<name>.yaml` file so that `cao apply` knows where to materialize it locally.",
+			"then creates a `resources/secret-<name>.yaml` file. Use `--target` for a secret that `cao apply` should materialize locally, " +
+			"or `--no-target` to keep it stored-only and retrieve it later with `cao workspace <name> secrets get`.",
 		Options: []optionHelp{
 			{Flag: "--input <path>", Description: "Plaintext file to encrypt and register."},
 			{Flag: "--name <name>", Description: "Resource name. If omitted, cao derives it from the input filename."},
 			{Flag: "--target <path>", Description: "Final local path where the decrypted file should be materialized."},
+			{Flag: "--no-target", Description: "Store the secret in the workspace without materializing it during `cao apply`."},
 			{Flag: "--format <auto|yaml|json|dotenv|binary>", Description: "Secret format. `auto` infers from the input filename; use `yaml` for kubeconfig files when you want to force structured encryption."},
 			{Flag: "--age <recipient[,recipient...]>", Description: "Comma-separated age recipients. Optional when the workspace repo already has valid `.sops.yaml` rules."},
 		},
 		Examples: []string{
 			"cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format yaml --age age1...",
 			"cao workspace perso secrets add --input .env --target ~/.config/my-app/.env --age age1...",
+			"cao workspace work secrets add --input .env --name mysql-root-password --no-target --age age1...",
+		},
+	},
+	"workspace secrets get": {
+		Name:    "workspace <name> secrets get",
+		Summary: "Decrypt one workspace secret on demand.",
+		Usage:   "cao workspace <name> secrets get <secret-name> [--output <path> | --stdout]",
+		Description: "Decrypts a managed workspace secret and writes the cleartext either to stdout or to a file. " +
+			"When stdout is an interactive terminal, cao refuses by default so you do not leak the secret into your scrollback; use `--stdout` to force it.",
+		Options: []optionHelp{
+			{Flag: "<secret-name>", Description: "Name of the managed secret resource to decrypt."},
+			{Flag: "--output <path>", Description: "Write the decrypted secret to a file with strict permissions instead of stdout."},
+			{Flag: "--stdout", Description: "Force writing the decrypted secret to stdout even when stdout is a terminal."},
+		},
+		Examples: []string{
+			"cao workspace work secrets get kubeconfig --output ~/.kube/work-config",
+			"cao workspace work secrets get mysql-root-password > /tmp/mysql-root-password",
+			"cao workspace work secrets get mysql-root-password --stdout",
 		},
 	},
 	"workspace files add": {

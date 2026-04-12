@@ -88,7 +88,7 @@ func TestRunApplyReportsMissingAgeKeyForSecretWorkspaces(t *testing.T) {
 	root := t.TempDir()
 	paths := testRuntimePaths(root)
 	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "workspace.yaml"), "name: work\n")
-	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "resources", "secret.yaml"), "kind: secret\nname: token\nsource: secrets/token.enc.yaml\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "resources", "secret.yaml"), "kind: secret\nname: token\nsource: secrets/token.enc.yaml\ntarget: ~/.config/token\n")
 	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "secrets", "token.enc.yaml"), "encrypted\n")
 
 	var stdout bytes.Buffer
@@ -105,6 +105,31 @@ func TestRunApplyReportsMissingAgeKeyForSecretWorkspaces(t *testing.T) {
 	}
 	if !strings.Contains(output, "age-keygen -o") {
 		t.Fatalf("expected age key fix hint, got %q", output)
+	}
+}
+
+func TestRunApplySkipsStoredOnlySecretPreflight(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	paths := testRuntimePaths(root)
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "workspace.yaml"), "name: work\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "resources", "secret.yaml"), "kind: secret\nname: token\nsource: secrets/token.enc.yaml\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "secrets", "token.enc.yaml"), "encrypted\n")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := newTestApp(&stdout, &stderr, paths, &fakeDependencyRunner{
+		missing: map[string]error{
+			"sops": exec.ErrNotFound,
+		},
+	})
+	code := app.Run(context.Background(), []string{"apply"})
+	if code != 0 {
+		t.Fatalf("expected success for stored-only secrets, got %d with stderr %q", code, stderr.String())
+	}
+	if strings.Contains(stderr.String(), "missing prerequisites") {
+		t.Fatalf("expected no secret preflight failure, got %q", stderr.String())
 	}
 }
 

@@ -34,6 +34,7 @@ type AddSecretOptions struct {
 	InputPath     string
 	Name          string
 	Target        string
+	NoTarget      bool
 	Format        string
 	AgeRecipients []string
 }
@@ -300,6 +301,10 @@ func AddSecret(ctx context.Context, paths caoruntime.Paths, runner command.Runne
 	if name == "" {
 		return "", "", fmt.Errorf("could not derive resource name from %q", opts.InputPath)
 	}
+	target := strings.TrimSpace(opts.Target)
+	if opts.NoTarget && target != "" {
+		return "", "", fmt.Errorf("target and no-target are mutually exclusive")
+	}
 	format := strings.TrimSpace(opts.Format)
 	if format == "" || format == "auto" {
 		format = secrets.DetectFormat(opts.InputPath)
@@ -316,17 +321,18 @@ func AddSecret(ctx context.Context, paths caoruntime.Paths, runner command.Runne
 	}); err != nil {
 		return "", "", err
 	}
-	target := opts.Target
-	if target == "" {
+	if !opts.NoTarget && target == "" {
 		target = defaultSecretTarget(workspaceName, name)
 	}
 	resource := config.ResourceManifest{
 		Kind:   "secret",
 		Name:   name,
 		Source: sourceRel,
-		Target: target,
 		Mode:   "0600",
 		Format: format,
+	}
+	if target != "" {
+		resource.Target = target
 	}
 	resourcePath := filepath.Join(info.Root, "resources", "secret-"+name+".yaml")
 	if err := config.WriteYAML(resourcePath, resource); err != nil {
@@ -510,6 +516,40 @@ func loadRoot(root string) (Info, error) {
 
 func defaultSecretTarget(workspaceName, resourceName string) string {
 	return caoruntime.DefaultGeneratedSecretTarget(workspaceName, resourceName)
+}
+
+func SecretHasTarget(resource *config.ResourceManifest) bool {
+	return resource != nil && resource.Kind == "secret" && strings.TrimSpace(resource.Target) != ""
+}
+
+func FindSecret(paths caoruntime.Paths, workspaceName, secretName string) (Info, ResourceInfo, error) {
+	info, err := Load(paths, workspaceName)
+	if err != nil {
+		return Info{}, ResourceInfo{}, err
+	}
+	if info.Problem != "" {
+		return Info{}, ResourceInfo{}, fmt.Errorf("workspace %q is invalid: %s", workspaceName, info.Problem)
+	}
+	secretName = strings.TrimSpace(secretName)
+	if secretName == "" {
+		return Info{}, ResourceInfo{}, fmt.Errorf("secret name is required")
+	}
+
+	var match *ResourceInfo
+	for _, resource := range info.Resources {
+		if resource.Manifest == nil || resource.Manifest.Kind != "secret" || resource.Manifest.Name != secretName {
+			continue
+		}
+		if match != nil {
+			return Info{}, ResourceInfo{}, fmt.Errorf("workspace %q has multiple secrets named %q", workspaceName, secretName)
+		}
+		candidate := resource
+		match = &candidate
+	}
+	if match == nil {
+		return Info{}, ResourceInfo{}, fmt.Errorf("workspace %q has no secret named %q", workspaceName, secretName)
+	}
+	return info, *match, nil
 }
 
 func secretFilename(name, format string) string {

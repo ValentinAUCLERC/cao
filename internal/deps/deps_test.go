@@ -76,7 +76,7 @@ func TestHasSecretResourcesRespectsWorkspaceFilter(t *testing.T) {
 	paths := testPaths(root)
 
 	writeFile(t, filepath.Join(paths.WorkspacesDir, "work", "workspace.yaml"), "name: work\n")
-	writeFile(t, filepath.Join(paths.WorkspacesDir, "work", "resources", "secret.yaml"), "kind: secret\nname: token\nsource: secrets/token.enc\n")
+	writeFile(t, filepath.Join(paths.WorkspacesDir, "work", "resources", "secret.yaml"), "kind: secret\nname: token\nsource: secrets/token.enc\ntarget: ~/.config/token\n")
 	writeFile(t, filepath.Join(paths.WorkspacesDir, "work", "secrets", "token.enc"), "encrypted\n")
 
 	writeFile(t, filepath.Join(paths.WorkspacesDir, "perso", "workspace.yaml"), "name: perso\n")
@@ -97,6 +97,25 @@ func TestHasSecretResourcesRespectsWorkspaceFilter(t *testing.T) {
 	}
 	if hasSecrets {
 		t.Fatalf("expected perso filter to skip secret resources")
+	}
+}
+
+func TestHasSecretResourcesSkipsStoredOnlySecrets(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	paths := testPaths(root)
+
+	writeFile(t, filepath.Join(paths.WorkspacesDir, "work", "workspace.yaml"), "name: work\n")
+	writeFile(t, filepath.Join(paths.WorkspacesDir, "work", "resources", "secret.yaml"), "kind: secret\nname: token\nsource: secrets/token.enc\n")
+	writeFile(t, filepath.Join(paths.WorkspacesDir, "work", "secrets", "token.enc"), "encrypted\n")
+
+	hasSecrets, err := HasSecretResources(paths, nil)
+	if err != nil {
+		t.Fatalf("has secrets: %v", err)
+	}
+	if hasSecrets {
+		t.Fatalf("expected stored-only secret to be ignored")
 	}
 }
 

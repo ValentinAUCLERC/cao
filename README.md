@@ -54,6 +54,8 @@ cao workspace list
 cao workspace rename perso personal
 cao workspace show work
 cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format yaml --age age1...
+cao workspace work secrets add --input .env --name mysql-root-password --no-target --age age1...
+cao workspace work secrets get mysql-root-password > /tmp/mysql-root-password
 cao workspace work command add --name kubectl-work --exec kubectl --env 'KUBECONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/cao/generated/work/work-kubeconfig'
 cao workspace perso files add --input ~/.config/myapp/config.json --target ~/.config/myapp/config.json
 cao workspace perso publish add --input ./scripts/devbox --name devbox
@@ -106,7 +108,13 @@ Supported simple resource kinds:
 
 For tiny aliases or wrappers, prefer `cao workspace <name> command add`. It generates a small published script for you and still uses the same `publish` mechanism underneath.
 
-All generated secret targets now follow the same workspace-first layout:
+For secret resources, `target` is optional:
+
+- when `target` is present, `cao apply` materializes the decrypted secret there
+- when `target` is omitted, the secret stays stored in the workspace and `cao apply` skips it
+- `cao workspace <name> secrets get <secret>` can decrypt either kind on demand
+
+CLI-generated materialized secret targets follow the same workspace-first layout:
 
 - `~/.config/cao/generated/work/<name>`
 - `~/.config/cao/generated/perso/<name>`
@@ -133,6 +141,18 @@ cao workspace work secrets add \
   --input ~/Downloads/work-kubeconfig.yaml \
   --format yaml \
   --age age1WORK
+```
+
+Stored-only example:
+
+```bash
+cao workspace work secrets add \
+  --input .env \
+  --name mysql-root-password \
+  --no-target \
+  --age age1WORK
+
+cao workspace work secrets get mysql-root-password > /tmp/mysql-root-password
 ```
 
 After `cao apply`, you can use both with:

@@ -16,6 +16,7 @@ import (
 	"github.com/ValentinAUCLERC/cao/internal/fsutil"
 	"github.com/ValentinAUCLERC/cao/internal/platform"
 	caoruntime "github.com/ValentinAUCLERC/cao/internal/runtime"
+	"github.com/ValentinAUCLERC/cao/internal/secrets"
 	"github.com/ValentinAUCLERC/cao/internal/state"
 	caoworkspace "github.com/ValentinAUCLERC/cao/internal/workspace"
 )
@@ -252,6 +253,9 @@ func (e *Engine) buildOperations(ctx context.Context, workspaces []Workspace) ([
 
 	for _, workspace := range workspaces {
 		for _, resource := range workspace.Resources {
+			if resource.Manifest != nil && resource.Manifest.Kind == "secret" && !caoworkspace.SecretHasTarget(resource.Manifest) {
+				continue
+			}
 			operation, err := e.buildResourceOperation(ctx, workspace.Name, workspace.Root, resource, claimedTargets)
 			if err != nil {
 				return nil, err
@@ -275,11 +279,7 @@ func (e *Engine) buildResourceOperation(ctx context.Context, workspaceName, work
 		if err != nil {
 			return Operation{}, fmt.Errorf("decrypt secret %s: %w", sourcePath, err)
 		}
-		target := resource.Manifest.Target
-		if target == "" {
-			target = caoruntime.DefaultGeneratedSecretTarget(workspaceName, resource.Manifest.Name)
-		}
-		target = e.Paths.Expand(target)
+		target := e.Paths.Expand(resource.Manifest.Target)
 		if err := ensureTargetAvailable(claimedTargets, target, owner); err != nil {
 			return Operation{}, err
 		}
@@ -369,11 +369,7 @@ func publishName(explicitName, sourcePath string) string {
 }
 
 func (e *Engine) decryptSecret(ctx context.Context, path string) ([]byte, error) {
-	out, err := e.Runner.Run(ctx, "sops", []string{"decrypt", path}, command.RunOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
+	return secrets.Decrypt(ctx, e.Runner, path)
 }
 
 func diffPlan(plan *Plan, current *state.State) []DiffItem {

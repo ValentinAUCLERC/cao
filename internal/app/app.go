@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/ValentinAUCLERC/cao/internal/command"
 	"github.com/ValentinAUCLERC/cao/internal/deps"
 	"github.com/ValentinAUCLERC/cao/internal/engine"
+	"github.com/ValentinAUCLERC/cao/internal/fsutil"
 	caoruntime "github.com/ValentinAUCLERC/cao/internal/runtime"
 	"github.com/ValentinAUCLERC/cao/internal/secrets"
 	caoworkspace "github.com/ValentinAUCLERC/cao/internal/workspace"
@@ -261,6 +263,9 @@ func (a *App) runWorkspace(ctx context.Context, args []string, paths caoruntime.
 		if action == "add" {
 			return a.runWorkspaceSecretsAdd(ctx, workspaceName, args[3:], paths, runner)
 		}
+		if action == "get" {
+			return a.runWorkspaceSecretsGet(ctx, workspaceName, args[3:], paths, runner)
+		}
 	case "files":
 		if action == "add" {
 			return a.runWorkspaceFilesAdd(workspaceName, args[3:], paths)
@@ -370,6 +375,7 @@ func (a *App) runWorkspaceSecretsAdd(ctx context.Context, workspaceName string, 
 	input := flags.String("input", "", "plaintext file to encrypt")
 	name := flags.String("name", "", "resource name")
 	target := flags.String("target", "", "final materialized path")
+	noTarget := flags.Bool("no-target", false, "store without a materialized target")
 	format := flags.String("format", "auto", "auto|yaml|json|dotenv|binary")
 	recipients := flags.String("age", "", "comma-separated age recipients")
 	if err := flags.Parse(args); err != nil {
@@ -394,6 +400,7 @@ func (a *App) runWorkspaceSecretsAdd(ctx context.Context, workspaceName string, 
 		InputPath:     *input,
 		Name:          *name,
 		Target:        *target,
+		NoTarget:      *noTarget,
 		Format:        *format,
 		AgeRecipients: splitCSV(*recipients),
 	})
@@ -404,6 +411,80 @@ func (a *App) runWorkspaceSecretsAdd(ctx context.Context, workspaceName string, 
 	style := detectOutputStyle(a.stdout)
 	fmt.Fprintln(a.stdout, formatPathResult(style, "secret", secretPath))
 	fmt.Fprintln(a.stdout, formatPathResult(style, "resource", resourcePath))
+	return 0
+}
+
+func (a *App) runWorkspaceSecretsGet(ctx context.Context, workspaceName string, args []string, paths caoruntime.Paths, runner command.Runner) int {
+	help := helpCatalog["workspace secrets get"]
+	if len(args) > 0 && isHelpToken(args[0]) {
+		a.printCommandHelp(a.stdout, help)
+		return 0
+	}
+	if len(args) == 0 {
+		fmt.Fprintln(a.stderr, "missing secret name")
+		fmt.Fprintln(a.stderr, "")
+		a.printCommandHelp(a.stderr, help)
+		return 1
+	}
+
+	secretName := strings.TrimSpace(args[0])
+	flags := flag.NewFlagSet("cao workspace secrets get", flag.ContinueOnError)
+	flags.SetOutput(a.stderr)
+	flags.Usage = func() { a.printCommandHelp(a.stderr, help) }
+	outputPath := flags.String("output", "", "write decrypted secret to a file")
+	forceStdout := flags.Bool("stdout", false, "allow printing the secret to stdout when stdout is a terminal")
+	if err := flags.Parse(args[1:]); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 1
+	}
+	if secretName == "" || flags.NArg() != 0 {
+		a.printCommandHelp(a.stderr, help)
+		return 1
+	}
+	if *outputPath != "" && *forceStdout {
+		fmt.Fprintln(a.stderr, "--output and --stdout are mutually exclusive")
+		return 1
+	}
+	if err := a.requireDependencies(ctx, help.Name, paths, runner, []deps.RequirementSpec{
+		{Requirement: deps.RequirementSops},
+		{Requirement: deps.RequirementAgeKey},
+	}); err != nil {
+		fmt.Fprintln(a.stderr, err)
+		return 1
+	}
+
+	info, resource, err := caoworkspace.FindSecret(paths, workspaceName, secretName)
+	if err != nil {
+		fmt.Fprintf(a.stderr, "%v\n", err)
+		return 1
+	}
+	sourcePath := filepath.Join(info.Root, filepath.FromSlash(resource.Manifest.Source))
+	cleartext, err := secrets.Decrypt(ctx, runner, sourcePath)
+	if err != nil {
+		fmt.Fprintf(a.stderr, "decrypt secret %s: %v\n", resource.Manifest.Name, err)
+		return 1
+	}
+
+	if *outputPath != "" {
+		targetPath := paths.Expand(*outputPath)
+		if err := fsutil.WriteFileAtomicWithDirMode(targetPath, cleartext, 0o600, 0o700); err != nil {
+			fmt.Fprintf(a.stderr, "write decrypted secret to %s: %v\n", targetPath, err)
+			return 1
+		}
+		fmt.Fprintln(a.stdout, formatPathResult(detectOutputStyle(a.stdout), "secret", targetPath))
+		return 0
+	}
+
+	if !*forceStdout && writerIsTerminal(a.stdout) {
+		fmt.Fprintln(a.stderr, "refusing to print a secret to an interactive terminal; use --stdout to force or --output <path> to write a file")
+		return 1
+	}
+	if _, err := a.stdout.Write(cleartext); err != nil {
+		fmt.Fprintf(a.stderr, "write secret output: %v\n", err)
+		return 1
+	}
 	return 0
 }
 
@@ -713,4 +794,16 @@ func splitCSV(value string) []string {
 		}
 	}
 	return items
+}
+
+func writerIsTerminal(w io.Writer) bool {
+	file, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
 }

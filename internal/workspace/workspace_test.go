@@ -117,6 +117,37 @@ func TestAddSecretWritesEncryptedFileAndResourceManifest(t *testing.T) {
 	}
 }
 
+func TestAddSecretWithNoTargetKeepsManifestStoredOnly(t *testing.T) {
+	t.Parallel()
+	paths := testPaths(t)
+	_, err := Init(paths, "work")
+	if err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	input := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(input, []byte("TOKEN=secret\n"), 0o644); err != nil {
+		t.Fatalf("write input: %v", err)
+	}
+
+	_, resourcePath, err := AddSecret(context.Background(), paths, &fakeRunner{}, "work", AddSecretOptions{
+		InputPath: input,
+		Name:      "token",
+		NoTarget:  true,
+	})
+	if err != nil {
+		t.Fatalf("add secret: %v", err)
+	}
+
+	resource, err := config.LoadResource(resourcePath)
+	if err != nil {
+		t.Fatalf("load resource: %v", err)
+	}
+	if resource.Target != "" {
+		t.Fatalf("expected stored-only secret without target, got %q", resource.Target)
+	}
+}
+
 func TestAddCommandWritesWrapperAndPublishResource(t *testing.T) {
 	t.Parallel()
 	paths := testPaths(t)

@@ -64,7 +64,7 @@ func HasSecretResources(paths caoruntime.Paths, filters []string) (bool, error) 
 			continue
 		}
 		for _, resource := range info.Resources {
-			if resource.Manifest != nil && resource.Manifest.Kind == "secret" {
+			if caoworkspace.SecretHasTarget(resource.Manifest) {
 				return true, nil
 			}
 		}

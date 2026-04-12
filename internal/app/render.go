@@ -253,7 +253,9 @@ func formatWorkspaceInfo(style outputStyle, info caoworkspace.Info) string {
 		lines = append(lines, fmt.Sprintf("resources: %d", len(info.Resources)))
 		for _, resource := range info.Resources {
 			target := resource.Manifest.Target
-			if target == "" {
+			if resource.Manifest.Kind == "secret" && target == "" {
+				target = "(stored only)"
+			} else if target == "" {
 				target = "(default)"
 			}
 			lines = append(lines, fmt.Sprintf("  - %s %s -> %s", resource.Manifest.Kind, resource.Manifest.Name, target))
@@ -287,7 +289,9 @@ func formatWorkspaceInfo(style outputStyle, info caoworkspace.Info) string {
 
 	for _, resource := range info.Resources {
 		target := resource.Manifest.Target
-		if target == "" {
+		if resource.Manifest.Kind == "secret" && target == "" {
+			target = "(stored only)"
+		} else if target == "" {
 			target = "(default)"
 		}
 		lines = append(lines, fmt.Sprintf(
@@ -379,22 +383,21 @@ func splitWorkspaceResources(paths caoruntime.Paths, info caoworkspace.Info) (fi
 	for _, resource := range info.Resources {
 		switch resource.Manifest.Kind {
 		case "secret", "file":
-			files = append(files, fmt.Sprintf("%s %s -> %s", resource.Manifest.Kind, resource.Manifest.Name, workspaceResourceTarget(paths, info.Name, resource)))
+			files = append(files, fmt.Sprintf("%s %s -> %s", resource.Manifest.Kind, resource.Manifest.Name, workspaceResourceTarget(paths, resource)))
 		case "publish":
-			commands = append(commands, fmt.Sprintf("%s -> %s", resource.Manifest.Name, workspaceResourceTarget(paths, info.Name, resource)))
+			commands = append(commands, fmt.Sprintf("%s -> %s", resource.Manifest.Name, workspaceResourceTarget(paths, resource)))
 		}
 	}
 	return files, commands
 }
 
-func workspaceResourceTarget(paths caoruntime.Paths, workspaceName string, resource caoworkspace.ResourceInfo) string {
+func workspaceResourceTarget(paths caoruntime.Paths, resource caoworkspace.ResourceInfo) string {
 	switch resource.Manifest.Kind {
 	case "secret":
-		target := resource.Manifest.Target
-		if target == "" {
-			target = caoruntime.DefaultGeneratedSecretTarget(workspaceName, resource.Manifest.Name)
+		if !caoworkspace.SecretHasTarget(resource.Manifest) {
+			return "(stored only)"
 		}
-		return paths.Expand(target)
+		return paths.Expand(resource.Manifest.Target)
 	case "file":
 		return paths.Expand(resource.Manifest.Target)
 	case "publish":
