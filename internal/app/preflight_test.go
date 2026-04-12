@@ -21,6 +21,21 @@ func (f *fakeDependencyRunner) Run(_ context.Context, name string, args []string
 	if err, ok := f.missing[name]; ok {
 		return nil, err
 	}
+	if name == "sops" && len(args) > 0 && args[0] == "encrypt" {
+		for index := 0; index < len(args)-1; index++ {
+			if args[index] == "--output" {
+				outputPath := args[index+1]
+				if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+					return nil, err
+				}
+				if err := os.WriteFile(outputPath, []byte("encrypted"), 0o600); err != nil {
+					return nil, err
+				}
+				break
+			}
+		}
+		return []byte("ok"), nil
+	}
 	if name == "sops" && len(args) == 2 && args[0] == "decrypt" {
 		return []byte("secret=value\n"), nil
 	}

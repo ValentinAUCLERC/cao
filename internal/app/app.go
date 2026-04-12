@@ -21,6 +21,7 @@ import (
 )
 
 type App struct {
+	stdin         io.Reader
 	stdout        io.Writer
 	stderr        io.Writer
 	detectPaths   func() (caoruntime.Paths, error)
@@ -28,9 +29,14 @@ type App struct {
 }
 
 type stringListFlag []string
+type optionalStringFlag struct {
+	value string
+	set   bool
+}
 
 func New(stdout, stderr io.Writer) *App {
 	return &App{
+		stdin:       os.Stdin,
 		stdout:      stdout,
 		stderr:      stderr,
 		detectPaths: caoruntime.Detect,
@@ -373,6 +379,9 @@ func (a *App) runWorkspaceSecretsAdd(ctx context.Context, workspaceName string, 
 	flags.SetOutput(a.stderr)
 	flags.Usage = func() { a.printCommandHelp(a.stderr, help) }
 	input := flags.String("input", "", "plaintext file to encrypt")
+	var value optionalStringFlag
+	flags.Var(&value, "value", "plaintext value to encrypt directly")
+	readStdin := flags.Bool("stdin", false, "read plaintext from stdin")
 	name := flags.String("name", "", "resource name")
 	target := flags.String("target", "", "final materialized path")
 	noTarget := flags.Bool("no-target", false, "store without a materialized target")
@@ -384,8 +393,28 @@ func (a *App) runWorkspaceSecretsAdd(ctx context.Context, workspaceName string, 
 		}
 		return 1
 	}
-	if *input == "" {
-		fmt.Fprintln(a.stderr, "missing input path")
+	if flags.NArg() != 0 {
+		a.printCommandHelp(a.stderr, help)
+		return 1
+	}
+	sourceCount := 0
+	if strings.TrimSpace(*input) != "" {
+		sourceCount++
+	}
+	if value.set {
+		sourceCount++
+	}
+	if *readStdin {
+		sourceCount++
+	}
+	if sourceCount != 1 {
+		fmt.Fprintln(a.stderr, "provide exactly one of --input, --value, or --stdin")
+		fmt.Fprintln(a.stderr, "")
+		a.printCommandHelp(a.stderr, help)
+		return 1
+	}
+	if (value.set || *readStdin) && strings.TrimSpace(*name) == "" {
+		fmt.Fprintln(a.stderr, "--name is required when using --value or --stdin")
 		fmt.Fprintln(a.stderr, "")
 		a.printCommandHelp(a.stderr, help)
 		return 1
@@ -396,8 +425,30 @@ func (a *App) runWorkspaceSecretsAdd(ctx context.Context, workspaceName string, 
 		fmt.Fprintln(a.stderr, err)
 		return 1
 	}
+	inputPath := *input
+	cleanup := func() {}
+	if value.set || *readStdin {
+		var plaintext []byte
+		if value.set {
+			plaintext = []byte(value.value)
+		} else {
+			var err error
+			plaintext, err = io.ReadAll(a.stdin)
+			if err != nil {
+				fmt.Fprintf(a.stderr, "read stdin: %v\n", err)
+				return 1
+			}
+		}
+		var err error
+		inputPath, cleanup, err = writeSecretTempInput(plaintext)
+		if err != nil {
+			fmt.Fprintf(a.stderr, "prepare secret input: %v\n", err)
+			return 1
+		}
+	}
+	defer cleanup()
 	secretPath, resourcePath, err := caoworkspace.AddSecret(ctx, paths, runner, workspaceName, caoworkspace.AddSecretOptions{
-		InputPath:     *input,
+		InputPath:     inputPath,
 		Name:          *name,
 		Target:        *target,
 		NoTarget:      *noTarget,
@@ -796,6 +847,16 @@ func splitCSV(value string) []string {
 	return items
 }
 
+func (f *optionalStringFlag) String() string {
+	return f.value
+}
+
+func (f *optionalStringFlag) Set(value string) error {
+	f.value = value
+	f.set = true
+	return nil
+}
+
 func writerIsTerminal(w io.Writer) bool {
 	file, ok := w.(*os.File)
 	if !ok {
@@ -806,4 +867,30 @@ func writerIsTerminal(w io.Writer) bool {
 		return false
 	}
 	return info.Mode()&os.ModeCharDevice != 0
+}
+
+func writeSecretTempInput(plaintext []byte) (string, func(), error) {
+	file, err := os.CreateTemp("", "cao-secret-*")
+	if err != nil {
+		return "", nil, err
+	}
+	path := file.Name()
+	cleanup := func() {
+		_ = os.Remove(path)
+	}
+	if err := file.Chmod(0o600); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", nil, err
+	}
+	if _, err := file.Write(plaintext); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", nil, err
+	}
+	if err := file.Close(); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	return path, cleanup, nil
 }

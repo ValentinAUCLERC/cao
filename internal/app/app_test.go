@@ -108,6 +108,65 @@ func TestRunWorkspaceSecretsGetCanWriteToFile(t *testing.T) {
 	}
 }
 
+func TestRunWorkspaceSecretsAddSupportsInlineValue(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	paths := testRuntimePaths(root)
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "workspace.yaml"), "name: work\n")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := newTestApp(&stdout, &stderr, paths, &fakeDependencyRunner{})
+	code := app.Run(context.Background(), []string{
+		"workspace", "work", "secrets", "add",
+		"--name", "mysql-root-password",
+		"--value", "supersecret",
+		"--no-target",
+	})
+	if code != 0 {
+		t.Fatalf("expected success, got %d with stderr %q", code, stderr.String())
+	}
+
+	resourcePath := filepath.Join(paths.WorkspacesDir, "work", "resources", "secret-mysql-root-password.yaml")
+	content, err := os.ReadFile(resourcePath)
+	if err != nil {
+		t.Fatalf("read resource: %v", err)
+	}
+	if strings.Contains(string(content), "target:") {
+		t.Fatalf("expected stored-only manifest without target, got %q", string(content))
+	}
+	if !strings.Contains(stdout.String(), filepath.Join(paths.WorkspacesDir, "work", "secrets", "mysql-root-password.enc")) {
+		t.Fatalf("expected created secret path in stdout, got %q", stdout.String())
+	}
+}
+
+func TestRunWorkspaceSecretsAddSupportsStdin(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	paths := testRuntimePaths(root)
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "workspace.yaml"), "name: work\n")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := newTestApp(&stdout, &stderr, paths, &fakeDependencyRunner{})
+	app.stdin = strings.NewReader("supersecret-from-stdin")
+	code := app.Run(context.Background(), []string{
+		"workspace", "work", "secrets", "add",
+		"--name", "mysql-root-password",
+		"--stdin",
+		"--no-target",
+	})
+	if code != 0 {
+		t.Fatalf("expected success, got %d with stderr %q", code, stderr.String())
+	}
+
+	if _, err := os.Stat(filepath.Join(paths.WorkspacesDir, "work", "secrets", "mysql-root-password.enc")); err != nil {
+		t.Fatalf("expected encrypted secret file, err=%v", err)
+	}
+}
+
 func TestRunWithoutArgsShowsNoWorkspacesHint(t *testing.T) {
 	t.Parallel()
 

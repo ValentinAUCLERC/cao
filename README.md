@@ -110,6 +110,7 @@ cao workspace rename perso personal
 cao workspace show work
 cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format yaml --age age1...
 cao workspace work secrets add --input .env --name mysql-root-password --no-target --age age1...
+printf %s "$MYSQL_ROOT_PASSWORD" | cao workspace work secrets add --name mysql-root-password --stdin --no-target --age age1...
 cao workspace work secrets get mysql-root-password > /tmp/mysql-root-password
 cao workspace work command add --name kubectl-work --exec kubectl --env 'KUBECONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/cao/generated/work/work-kubeconfig'
 cao workspace perso files add --input ~/.config/myapp/config.json --target ~/.config/myapp/config.json
@@ -169,6 +170,14 @@ For secret resources, `target` is optional:
 - when `target` is omitted, the secret stays stored in the workspace and `cao apply` skips it
 - `cao workspace <name> secrets get <secret>` can decrypt either kind on demand
 
+`cao workspace <name> secrets add` accepts three plaintext sources:
+
+- `--input <path>` for the existing file-based flow
+- `--stdin` for direct values or multi-line content without leaking into shell history
+- `--value <string>` when you really want an inline one-liner
+
+When you use `--stdin` or `--value`, pass `--name` explicitly because there is no source filename to derive the resource name from.
+
 CLI-generated materialized secret targets follow the same workspace-first layout:
 
 - `~/.config/cao/generated/work/<name>`
@@ -204,6 +213,13 @@ Stored-only example:
 cao workspace work secrets add \
   --input .env \
   --name mysql-root-password \
+  --no-target \
+  --age age1WORK
+
+printf %s "$MYSQL_ROOT_PASSWORD" | \
+  cao workspace work secrets add \
+  --name mysql-root-password \
+  --stdin \
   --no-target \
   --age age1WORK
 

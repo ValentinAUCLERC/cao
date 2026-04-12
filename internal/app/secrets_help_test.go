@@ -40,3 +40,17 @@ func TestHelpWorkspaceSecretsGetShowsDetailedHelp(t *testing.T) {
 		t.Fatalf("expected get options, got %q", output)
 	}
 }
+
+func TestHelpWorkspaceSecretsAddShowsDirectValueOptions(t *testing.T) {
+	t.Parallel()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := New(&stdout, &stderr).Run(context.Background(), []string{"help", "workspace", "secrets", "add"})
+	if code != 0 {
+		t.Fatalf("expected success, got %d", code)
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "--value <string>") || !strings.Contains(output, "--stdin") {
+		t.Fatalf("expected direct input options, got %q", output)
+	}
+}

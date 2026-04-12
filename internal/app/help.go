@@ -98,12 +98,15 @@ var helpCatalog = map[string]commandHelp{
 	"workspace secrets add": {
 		Name:    "workspace <name> secrets add",
 		Summary: "Encrypt a plaintext file and register it as a managed secret resource.",
-		Usage:   "cao workspace <name> secrets add --input <path> [--name <name>] [--target <path> | --no-target] [--format <auto|yaml|json|dotenv|binary>] [--age <recipient[,recipient...]>]",
+		Usage:   "cao workspace <name> secrets add (--input <path> | --value <string> | --stdin) [--name <name>] [--target <path> | --no-target] [--format <auto|yaml|json|dotenv|binary>] [--age <recipient[,recipient...]>]",
 		Description: "Encrypts the input with SOPS into the workspace `secrets/` directory, " +
 			"then creates a `resources/secret-<name>.yaml` file. Use `--target` for a secret that `cao apply` should materialize locally, " +
-			"or `--no-target` to keep it stored-only and retrieve it later with `cao workspace <name> secrets get`.",
+			"or `--no-target` to keep it stored-only and retrieve it later with `cao workspace <name> secrets get`. " +
+			"When you use `--value` or `--stdin`, pass `--name` explicitly because there is no filename to derive from.",
 		Options: []optionHelp{
 			{Flag: "--input <path>", Description: "Plaintext file to encrypt and register."},
+			{Flag: "--value <string>", Description: "Plaintext value to encrypt directly. Convenient, but easier to leak through shell history than `--stdin`."},
+			{Flag: "--stdin", Description: "Read the plaintext from stdin instead of a file path. Preferred for direct values and multi-line secrets."},
 			{Flag: "--name <name>", Description: "Resource name. If omitted, cao derives it from the input filename."},
 			{Flag: "--target <path>", Description: "Final local path where the decrypted file should be materialized."},
 			{Flag: "--no-target", Description: "Store the secret in the workspace without materializing it during `cao apply`."},
@@ -114,6 +117,8 @@ var helpCatalog = map[string]commandHelp{
 			"cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format yaml --age age1...",
 			"cao workspace perso secrets add --input .env --target ~/.config/my-app/.env --age age1...",
 			"cao workspace work secrets add --input .env --name mysql-root-password --no-target --age age1...",
+			"cao workspace work secrets add --name mysql-root-password --value 'supersecret' --no-target --age age1...",
+			"printf %s \"$MYSQL_ROOT_PASSWORD\" | cao workspace work secrets add --name mysql-root-password --stdin --no-target --age age1...",
 		},
 	},
 	"workspace secrets get": {
