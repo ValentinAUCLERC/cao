@@ -534,10 +534,11 @@ func FindSecret(paths caoruntime.Paths, workspaceName, secretName string) (Info,
 	if secretName == "" {
 		return Info{}, ResourceInfo{}, fmt.Errorf("secret name is required")
 	}
+	normalizedSecretName := sanitizeName(secretName)
 
 	var match *ResourceInfo
 	for _, resource := range info.Resources {
-		if resource.Manifest == nil || resource.Manifest.Kind != "secret" || resource.Manifest.Name != secretName {
+		if resource.Manifest == nil || resource.Manifest.Kind != "secret" || !secretNameMatches(resource.Manifest.Name, secretName, normalizedSecretName) {
 			continue
 		}
 		if match != nil {
@@ -550,6 +551,16 @@ func FindSecret(paths caoruntime.Paths, workspaceName, secretName string) (Info,
 		return Info{}, ResourceInfo{}, fmt.Errorf("workspace %q has no secret named %q", workspaceName, secretName)
 	}
 	return info, *match, nil
+}
+
+func secretNameMatches(actualName, requestedName, normalizedRequestedName string) bool {
+	if actualName == requestedName {
+		return true
+	}
+	if normalizedRequestedName == "" {
+		return false
+	}
+	return sanitizeName(actualName) == normalizedRequestedName
 }
 
 func secretFilename(name, format string) string {

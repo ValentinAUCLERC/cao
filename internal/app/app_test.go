@@ -77,6 +77,28 @@ func TestRunWorkspaceSecretsGetWritesStoredOnlySecretToStdout(t *testing.T) {
 	}
 }
 
+func TestRunWorkspaceSecretsGetAcceptsUnnormalizedSecretName(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	paths := testRuntimePaths(root)
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "workspace.yaml"), "name: work\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "resources", "secret.yaml"), "kind: secret\nname: saas-pprod-mysql-root-pwd\nsource: secrets/saas-pprod-mysql-root-pwd.enc\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "work", "secrets", "saas-pprod-mysql-root-pwd.enc"), "encrypted\n")
+	writeTestFile(t, filepath.Join(paths.ConfigHome, "sops", "age", "keys.txt"), "AGE-SECRET-KEY-1...\n")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := newTestApp(&stdout, &stderr, paths, &fakeDependencyRunner{})
+	code := app.Run(context.Background(), []string{"workspace", "work", "secrets", "get", "SAAS_PPROD_MYSQL_ROOT_PWD"})
+	if code != 0 {
+		t.Fatalf("expected success, got %d with stderr %q", code, stderr.String())
+	}
+	if stdout.String() != "secret=value\n" {
+		t.Fatalf("expected raw secret on stdout, got %q", stdout.String())
+	}
+}
+
 func TestRunWorkspaceSecretsGetCanWriteToFile(t *testing.T) {
 	t.Parallel()
 
