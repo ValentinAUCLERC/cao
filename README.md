@@ -2,24 +2,79 @@
 
 `cao` is a workspace-first home-state composer for dotfiles, configs, secrets, and user scripts.
 
-The public model is intentionally simple:
+It helps you build a clean local setup from small, reviewable workspaces instead of one giant machine-specific repo. Put your personal setup in one workspace, your work setup in another, keep secrets encrypted, and let `cao` materialize the right files on demand.
 
-- `cao` has its own base directory under XDG
-- every workspace present in `workspaces/` is active by default
-- simple cases use CLI-generated resources
-- `plan`, `apply`, `diff`, and `prune` always work from the locally present workspaces
+## Why cao
+
+- Workspace-first by design: every workspace present in `workspaces/` is active by default.
+- Friendly CLI for common cases: add files, secrets, and commands without hand-writing manifests.
+- Safe local workflow: `plan`, `diff`, `apply`, and `prune` always operate from the workspaces you already have locally.
+- Secrets live next to the rest of your setup: use `sops` and `age` without bolting on a separate system.
+- Intentionally strict YAML: unknown fields, anchors, merge keys, and custom tags are rejected to keep things explicit and reviewable.
 
 ## Install
 
-The easiest way to distribute `cao` is as a prebuilt binary from [GitHub Releases](https://github.com/ValentinAUCLERC/cao/releases).
+Homebrew:
 
-Download the archive for your platform, extract `cao`, and place it in a directory that is already in your `PATH`, such as `~/.local/bin`.
+```bash
+brew install ValentinAUCLERC/tap/cao
+```
+
+Prebuilt binaries are also available from [GitHub Releases](https://github.com/ValentinAUCLERC/cao/releases).
+
+Download the archive for your platform, extract `cao`, and place it in a directory already in your `PATH`, such as `~/.local/bin`.
 
 If you prefer building from source:
 
 ```bash
 go install github.com/ValentinAUCLERC/cao/cmd/cao@latest
 ```
+
+## Quick start
+
+Check your machine:
+
+```bash
+cao doctor
+```
+
+Create a workspace:
+
+```bash
+cao init perso
+```
+
+Add a managed file:
+
+```bash
+cao workspace perso files add \
+  --input ~/.config/myapp/config.json \
+  --target ~/.config/myapp/config.json
+```
+
+Preview and apply:
+
+```bash
+cao plan
+cao apply
+```
+
+Want to bring in an existing setup instead of starting from scratch?
+
+```bash
+cao fetch git@github.com:me/cao-work.git work
+```
+
+## The model
+
+The public model is intentionally simple:
+
+- `cao` has its own base directory under XDG.
+- Every workspace present in `workspaces/` is active by default.
+- Simple cases use CLI-generated resources.
+- `plan`, `apply`, `diff`, and `prune` always work from the locally present workspaces.
+
+That makes the day-to-day flow straightforward: fetch or create a workspace, add resources, preview changes, then apply them locally.
 
 ## Runtime dependencies
 
@@ -44,7 +99,7 @@ By default `cao` stores data here:
 
 `cao doctor` prints the exact paths for the current machine.
 
-## Main commands
+## Common commands
 
 ```bash
 cao doctor
