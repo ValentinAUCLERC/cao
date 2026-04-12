@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/ValentinAUCLERC/cao/internal/deps"
@@ -56,6 +57,90 @@ func formatPlan(style outputStyle, plan *engine.Plan, diffItems []engine.DiffIte
 		}
 	}
 
+	return strings.Join(lines, "\n")
+}
+
+func formatWorkspaceOverview(style outputStyle, paths caoruntime.Paths, infos []caoworkspace.Info) string {
+	if !style.enabled {
+		var lines []string
+		lines = append(lines, fmt.Sprintf("loaded workspaces: %d", len(infos)))
+		lines = append(lines, fmt.Sprintf("path: %s", paths.WorkspacesDir))
+		if len(infos) == 0 {
+			lines = append(lines, "status: no workspaces found")
+			lines = append(lines, "hint: cao init <name> | cao fetch <repo> [workspace-name]")
+			lines = append(lines, "help: cao --help")
+			return strings.Join(lines, "\n")
+		}
+		for _, info := range infos {
+			lines = append(lines, "")
+			lines = append(lines, fmt.Sprintf("workspace: %s", info.Name))
+			if info.Problem != "" {
+				lines = append(lines, fmt.Sprintf("status: invalid (%s)", info.Problem))
+				continue
+			}
+			files, commands := splitWorkspaceResources(paths, info)
+			lines = append(lines, "files:")
+			if len(files) == 0 {
+				lines = append(lines, "  - none")
+			} else {
+				for _, item := range files {
+					lines = append(lines, "  - "+item)
+				}
+			}
+			lines = append(lines, "commands:")
+			if len(commands) == 0 {
+				lines = append(lines, "  - none")
+			} else {
+				for _, item := range commands {
+					lines = append(lines, "  - "+item)
+				}
+			}
+		}
+		lines = append(lines, "")
+		lines = append(lines, "help: cao --help")
+		return strings.Join(lines, "\n")
+	}
+
+	var lines []string
+	lines = append(lines, style.heading("Loaded Workspaces"))
+	lines = append(lines, formatDetailLine(style, "path", paths.WorkspacesDir, 12))
+	lines = append(lines, formatDetailLine(style, "count", fmt.Sprintf("%d", len(infos)), 12))
+	if len(infos) == 0 {
+		lines = append(lines, "")
+		lines = append(lines, "  "+style.warning("No workspaces found."))
+		lines = append(lines, "  Use "+style.code("cao init <name>")+" or "+style.code("cao fetch <repo> [workspace-name]")+" to add one.")
+		lines = append(lines, "  Run "+style.code("cao --help")+" for the full command catalog.")
+		return strings.Join(lines, "\n")
+	}
+
+	for _, info := range infos {
+		lines = append(lines, "")
+		if info.Problem != "" {
+			lines = append(lines, fmt.Sprintf("%s %s", style.command(info.Name), style.danger("(invalid: "+info.Problem+")")))
+			continue
+		}
+		lines = append(lines, style.command(info.Name))
+		files, commands := splitWorkspaceResources(paths, info)
+		lines = append(lines, "  "+style.label("Files"))
+		if len(files) == 0 {
+			lines = append(lines, "    - "+style.muted("No files."))
+		} else {
+			for _, item := range files {
+				lines = append(lines, "    - "+item)
+			}
+		}
+		lines = append(lines, "  "+style.label("Commands"))
+		if len(commands) == 0 {
+			lines = append(lines, "    - "+style.muted("No commands."))
+		} else {
+			for _, item := range commands {
+				lines = append(lines, "    - "+item)
+			}
+		}
+	}
+
+	lines = append(lines, "")
+	lines = append(lines, style.muted("Run ")+style.code("cao --help")+style.muted(" for the full command catalog."))
 	return strings.Join(lines, "\n")
 }
 
@@ -288,4 +373,37 @@ func problemSummary(status deps.Status) string {
 		return string(status.Requirement) + " is not installed"
 	}
 	return fmt.Sprintf("%s is unavailable (%s)", status.Requirement, status.Summary)
+}
+
+func splitWorkspaceResources(paths caoruntime.Paths, info caoworkspace.Info) (files []string, commands []string) {
+	for _, resource := range info.Resources {
+		switch resource.Manifest.Kind {
+		case "secret", "file":
+			files = append(files, fmt.Sprintf("%s %s -> %s", resource.Manifest.Kind, resource.Manifest.Name, workspaceResourceTarget(paths, info.Name, resource)))
+		case "publish":
+			commands = append(commands, fmt.Sprintf("%s -> %s", resource.Manifest.Name, workspaceResourceTarget(paths, info.Name, resource)))
+		}
+	}
+	return files, commands
+}
+
+func workspaceResourceTarget(paths caoruntime.Paths, workspaceName string, resource caoworkspace.ResourceInfo) string {
+	switch resource.Manifest.Kind {
+	case "secret":
+		target := resource.Manifest.Target
+		if target == "" {
+			target = caoruntime.DefaultGeneratedSecretTarget(workspaceName, resource.Manifest.Name)
+		}
+		return paths.Expand(target)
+	case "file":
+		return paths.Expand(resource.Manifest.Target)
+	case "publish":
+		targetDir := resource.Manifest.TargetDir
+		if targetDir == "" {
+			targetDir = paths.BinDir
+		}
+		return filepath.Join(paths.Expand(targetDir), resource.Manifest.Name)
+	default:
+		return ""
+	}
 }

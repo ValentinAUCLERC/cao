@@ -67,7 +67,7 @@ func TestEncryptBuildsSopsCommand(t *testing.T) {
 	}
 }
 
-func TestEncryptTreatsKubeconfigAsYAMLForSops(t *testing.T) {
+func TestEncryptUsesExplicitYAMLFormatForSops(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	input := filepath.Join(root, "cluster.yaml")
@@ -77,16 +77,13 @@ func TestEncryptTreatsKubeconfigAsYAMLForSops(t *testing.T) {
 	runner := &fakeRunner{}
 	if _, err := Encrypt(context.Background(), runner, EncryptOptions{
 		InputPath: input,
-		Format:    "kubeconfig",
+		Format:    "yaml",
 	}); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	commandLine := runner.name + " " + strings.Join(runner.args, " ")
 	if !strings.Contains(commandLine, "--input-type yaml --output-type yaml") {
 		t.Fatalf("expected yaml format in command: %s", commandLine)
-	}
-	if strings.Contains(commandLine, "--input-type kubeconfig") {
-		t.Fatalf("did not expect unsupported kubeconfig format in command: %s", commandLine)
 	}
 }
 
@@ -104,5 +101,24 @@ func TestEncryptRejectsConflictingOutputOptions(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected conflict error")
+	}
+}
+
+func TestEncryptRejectsUnsupportedFormat(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	input := filepath.Join(root, "cluster.yaml")
+	if err := os.WriteFile(input, []byte("apiVersion: v1\n"), 0o644); err != nil {
+		t.Fatalf("write input: %v", err)
+	}
+	_, err := Encrypt(context.Background(), &fakeRunner{}, EncryptOptions{
+		InputPath: input,
+		Format:    "kubeconfig",
+	})
+	if err == nil {
+		t.Fatalf("expected unsupported format error")
+	}
+	if !strings.Contains(err.Error(), `unsupported secret format "kubeconfig"`) {
+		t.Fatalf("unexpected error %v", err)
 	}
 }

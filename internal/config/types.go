@@ -47,7 +47,7 @@ func (r ResourceManifest) Validate() error {
 		return fmt.Errorf("unsupported resource kind %q", r.Kind)
 	}
 	switch r.Format {
-	case "", "auto", "yaml", "json", "dotenv", "binary", "kubeconfig":
+	case "", "auto", "yaml", "json", "dotenv", "binary":
 	default:
 		return fmt.Errorf("unsupported resource format %q", r.Format)
 	}

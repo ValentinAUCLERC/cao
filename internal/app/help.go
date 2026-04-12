@@ -77,7 +77,7 @@ var helpCatalog = map[string]commandHelp{
 			"cao workspace path work",
 			"cao workspace rename perso personal",
 			"cao workspace show perso",
-			"cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format kubeconfig --age age1...",
+			"cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format yaml --age age1...",
 			"cao workspace perso files add --input ~/.config/myapp/config.json --target ~/.config/myapp/config.json",
 			"cao workspace work command add --name kubectl-work --exec kubectl --env 'KUBECONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/cao/generated/work/work-kubeconfig'",
 			"cao workspace perso publish add --input ./scripts/devbox --name devbox",
@@ -96,18 +96,18 @@ var helpCatalog = map[string]commandHelp{
 	"workspace secrets add": {
 		Name:    "workspace <name> secrets add",
 		Summary: "Encrypt a plaintext file and register it as a managed secret resource.",
-		Usage:   "cao workspace <name> secrets add --input <path> [--name <name>] [--target <path>] [--format <auto|yaml|json|dotenv|binary|kubeconfig>] [--age <recipient[,recipient...]>]",
+		Usage:   "cao workspace <name> secrets add --input <path> [--name <name>] [--target <path>] [--format <auto|yaml|json|dotenv|binary>] [--age <recipient[,recipient...]>]",
 		Description: "Encrypts the input with SOPS into the workspace `secrets/` directory, " +
 			"then creates a `resources/secret-<name>.yaml` file so that `cao apply` knows where to materialize it locally.",
 		Options: []optionHelp{
 			{Flag: "--input <path>", Description: "Plaintext file to encrypt and register."},
 			{Flag: "--name <name>", Description: "Resource name. If omitted, cao derives it from the input filename."},
 			{Flag: "--target <path>", Description: "Final local path where the decrypted file should be materialized."},
-			{Flag: "--format <auto|yaml|json|dotenv|binary|kubeconfig>", Description: "Secret format. `kubeconfig` is still encrypted as YAML, but follows the same default target layout as every other secret."},
+			{Flag: "--format <auto|yaml|json|dotenv|binary>", Description: "Secret format. `auto` infers from the input filename; use `yaml` for kubeconfig files when you want to force structured encryption."},
 			{Flag: "--age <recipient[,recipient...]>", Description: "Comma-separated age recipients. Optional when the workspace repo already has valid `.sops.yaml` rules."},
 		},
 		Examples: []string{
-			"cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format kubeconfig --age age1...",
+			"cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format yaml --age age1...",
 			"cao workspace perso secrets add --input .env --target ~/.config/my-app/.env --age age1...",
 		},
 	},

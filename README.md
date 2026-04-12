@@ -53,7 +53,7 @@ cao fetch git@github.com:me/cao-work.git work
 cao workspace list
 cao workspace rename perso personal
 cao workspace show work
-cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format kubeconfig --age age1...
+cao workspace work secrets add --input ~/Downloads/work-kubeconfig.yaml --format yaml --age age1...
 cao workspace work command add --name kubectl-work --exec kubectl --env 'KUBECONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/cao/generated/work/work-kubeconfig'
 cao workspace perso files add --input ~/.config/myapp/config.json --target ~/.config/myapp/config.json
 cao workspace perso publish add --input ./scripts/devbox --name devbox
@@ -95,7 +95,7 @@ name: work-kubeconfig
 source: secrets/work-kubeconfig.enc.yaml
 target: ${XDG_CONFIG_HOME}/cao/generated/work/work-kubeconfig
 mode: "0600"
-format: kubeconfig
+format: yaml
 ```
 
 Supported simple resource kinds:
@@ -111,7 +111,7 @@ All generated secret targets now follow the same workspace-first layout:
 - `~/.config/cao/generated/work/<name>`
 - `~/.config/cao/generated/perso/<name>`
 
-`kubeconfig` is no longer special from a target-path point of view. It only affects how the file is encrypted and validated.
+Kubeconfigs are plain YAML secrets in `cao`. Use `format: yaml` when you want to force structured encryption, or leave `format` unset and let `auto` infer it from the filename.
 
 If you rename a workspace later, `cao workspace rename <old> <new>` updates the workspace folder, `workspace.yaml`, simple secret targets that still use the default layout, tracked state entries, and generated command wrappers that reference the old default generated path.
 
@@ -122,7 +122,7 @@ Personal workspace:
 ```bash
 cao workspace perso secrets add \
   --input ~/Downloads/personal-kubeconfig.yaml \
-  --format kubeconfig \
+  --format yaml \
   --age age1PERSONAL
 ```
 
@@ -131,7 +131,7 @@ Work workspace:
 ```bash
 cao workspace work secrets add \
   --input ~/Downloads/work-kubeconfig.yaml \
-  --format kubeconfig \
+  --format yaml \
   --age age1WORK
 ```
 

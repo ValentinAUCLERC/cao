@@ -40,8 +40,7 @@ func New(stdout, stderr io.Writer) *App {
 
 func (a *App) Run(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		a.printGlobalHelp(a.stdout)
-		return 0
+		return a.runOverview()
 	}
 	if isHelpToken(args[0]) {
 		return a.runHelp(args[1:])
@@ -118,6 +117,21 @@ func (a *App) Run(ctx context.Context, args []string) int {
 		a.printGlobalHelp(a.stderr)
 		return 1
 	}
+}
+
+func (a *App) runOverview() int {
+	paths, err := a.detectPaths()
+	if err != nil {
+		fmt.Fprintf(a.stderr, "detect runtime paths: %v\n", err)
+		return 1
+	}
+	infos, err := caoworkspace.List(paths, nil)
+	if err != nil {
+		fmt.Fprintf(a.stderr, "%v\n", err)
+		return 1
+	}
+	fmt.Fprintln(a.stdout, formatWorkspaceOverview(detectOutputStyle(a.stdout), paths, infos))
+	return 0
 }
 
 func (a *App) runHelp(args []string) int {
@@ -356,7 +370,7 @@ func (a *App) runWorkspaceSecretsAdd(ctx context.Context, workspaceName string, 
 	input := flags.String("input", "", "plaintext file to encrypt")
 	name := flags.String("name", "", "resource name")
 	target := flags.String("target", "", "final materialized path")
-	format := flags.String("format", "auto", "auto|yaml|json|dotenv|binary|kubeconfig")
+	format := flags.String("format", "auto", "auto|yaml|json|dotenv|binary")
 	recipients := flags.String("age", "", "comma-separated age recipients")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {

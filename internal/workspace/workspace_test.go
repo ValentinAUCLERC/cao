@@ -82,7 +82,7 @@ func TestAddSecretWritesEncryptedFileAndResourceManifest(t *testing.T) {
 	runner := &fakeRunner{}
 	secretPath, resourcePath, err := AddSecret(context.Background(), paths, runner, "work", AddSecretOptions{
 		InputPath:     input,
-		Format:        "kubeconfig",
+		Format:        "yaml",
 		AgeRecipients: []string{"age1example"},
 	})
 	if err != nil {
@@ -99,7 +99,7 @@ func TestAddSecretWritesEncryptedFileAndResourceManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load resource: %v", err)
 	}
-	if resource.Kind != "secret" || resource.Format != "kubeconfig" {
+	if resource.Kind != "secret" || resource.Format != "yaml" {
 		t.Fatalf("unexpected resource manifest %#v", resource)
 	}
 	if resource.Target != "${XDG_CONFIG_HOME}/cao/generated/work/work-kubeconfig" {
@@ -107,7 +107,7 @@ func TestAddSecretWritesEncryptedFileAndResourceManifest(t *testing.T) {
 	}
 	commandLine := runner.name + " " + strings.Join(runner.args, " ")
 	if !strings.Contains(commandLine, "--input-type yaml --output-type yaml") {
-		t.Fatalf("expected kubeconfig to be encrypted as yaml, got %s", commandLine)
+		t.Fatalf("expected secret to be encrypted as yaml, got %s", commandLine)
 	}
 	if !strings.Contains(commandLine, "--filename-override secrets/work-kubeconfig.enc.yaml") {
 		t.Fatalf("expected filename override for workspace secret path, got %s", commandLine)

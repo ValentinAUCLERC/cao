@@ -46,6 +46,9 @@ func Encrypt(ctx context.Context, runner command.Runner, opts EncryptOptions) (s
 	if format == "" {
 		format = DetectFormat(opts.InputPath)
 	}
+	if err := ValidateFormat(format); err != nil {
+		return "", err
+	}
 	sopsFormat := sopsFormatFor(format)
 
 	args := []string{"encrypt"}
@@ -113,11 +116,15 @@ func normalizeFormat(value string) string {
 	return value
 }
 
-func sopsFormatFor(format string) string {
+func ValidateFormat(format string) error {
 	switch format {
-	case "kubeconfig":
-		return "yaml"
+	case "yaml", "json", "dotenv", "binary":
+		return nil
 	default:
-		return format
+		return fmt.Errorf("unsupported secret format %q", format)
 	}
+}
+
+func sopsFormatFor(format string) string {
+	return format
 }

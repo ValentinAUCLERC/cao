@@ -3,16 +3,84 @@ package app
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestRunWithoutArgsShowsGlobalHelp(t *testing.T) {
+func TestRunWithoutArgsShowsWorkspaceOverview(t *testing.T) {
 	t.Parallel()
+
+	root := t.TempDir()
+	paths := testRuntimePaths(root)
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "perso", "workspace.yaml"), "name: perso\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "perso", "resources", "secret.yaml"), "kind: secret\nname: kubeconfig\nsource: secrets/kubeconfig.enc.yaml\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "perso", "resources", "file.yaml"), "kind: file\nname: gitconfig\nsource: files/gitconfig\ntarget: ~/.gitconfig\n")
+	writeTestFile(t, filepath.Join(paths.WorkspacesDir, "perso", "resources", "publish.yaml"), "kind: publish\nname: devbox\nsource: bin/devbox\n")
+
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := New(&stdout, &stderr).Run(context.Background(), nil)
+	app := newTestApp(&stdout, &stderr, paths, &fakeDependencyRunner{})
+	code := app.Run(context.Background(), nil)
+	if code != 0 {
+		t.Fatalf("expected success, got %d", code)
+	}
+
+	output := stdout.String()
+	if !strings.Contains(output, "loaded workspaces: 1") {
+		t.Fatalf("expected overview header in stdout, got %q", output)
+	}
+	if !strings.Contains(output, "workspace: perso") {
+		t.Fatalf("expected workspace entry in stdout, got %q", output)
+	}
+	if !strings.Contains(output, "secret kubeconfig -> "+filepath.Join(paths.ConfigHome, "cao", "generated", "perso", "kubeconfig")) {
+		t.Fatalf("expected secret target in stdout, got %q", output)
+	}
+	if !strings.Contains(output, "file gitconfig -> "+filepath.Join(paths.Home, ".gitconfig")) {
+		t.Fatalf("expected file target in stdout, got %q", output)
+	}
+	if !strings.Contains(output, "devbox -> "+filepath.Join(paths.BinDir, "devbox")) {
+		t.Fatalf("expected command target in stdout, got %q", output)
+	}
+	if !strings.Contains(output, "help: cao --help") {
+		t.Fatalf("expected help hint in stdout, got %q", output)
+	}
+	if strings.Contains(output, "cao composes dotfiles") {
+		t.Fatalf("expected overview instead of global help, got %q", output)
+	}
+}
+
+func TestRunWithoutArgsShowsNoWorkspacesHint(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	paths := testRuntimePaths(root)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	app := newTestApp(&stdout, &stderr, paths, &fakeDependencyRunner{})
+	code := app.Run(context.Background(), nil)
+	if code != 0 {
+		t.Fatalf("expected success, got %d", code)
+	}
+
+	output := stdout.String()
+	if !strings.Contains(output, "status: no workspaces found") {
+		t.Fatalf("expected empty-workspace hint, got %q", output)
+	}
+	if !strings.Contains(output, "hint: cao init <name> | cao fetch <repo> [workspace-name]") {
+		t.Fatalf("expected setup hint, got %q", output)
+	}
+}
+
+func TestRunHelpFlagStillShowsGlobalHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := New(&stdout, &stderr).Run(context.Background(), []string{"--help"})
 	if code != 0 {
 		t.Fatalf("expected success, got %d", code)
 	}
@@ -21,8 +89,8 @@ func TestRunWithoutArgsShowsGlobalHelp(t *testing.T) {
 	if !strings.Contains(output, "cao composes dotfiles") {
 		t.Fatalf("expected global help in stdout, got %q", output)
 	}
-	if !strings.Contains(output, "workspace") || !strings.Contains(output, "fetch") {
-		t.Fatalf("expected workspace-first command catalog, got %q", output)
+	if !strings.Contains(output, "Top-Level Commands") {
+		t.Fatalf("expected command catalog in stdout, got %q", output)
 	}
 }
 

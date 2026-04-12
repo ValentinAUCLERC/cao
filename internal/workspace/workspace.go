@@ -514,7 +514,7 @@ func defaultSecretTarget(workspaceName, resourceName string) string {
 
 func secretFilename(name, format string) string {
 	switch format {
-	case "yaml", "kubeconfig":
+	case "yaml":
 		return name + ".enc.yaml"
 	case "json":
 		return name + ".enc.json"
